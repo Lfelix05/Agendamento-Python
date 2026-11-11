@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agendamento de Serviços</title>
+  <style>
+    :root { --cor: #2563eb; --ok: #15803d; --erro: #b91c1c; --borda: #d1d5db; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #f3f4f6; margin: 0; padding: 24px 16px; color: #111827; }
+    main { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    h1 { font-size: 1.4rem; margin: 0 0 16px; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; font-size: .9rem; }
+    select, input { width: 100%; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 1rem; }
+    .linha { display: flex; gap: 12px; }
+    .linha > div { flex: 1; }
+    button { margin-top: 20px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--cor); color: #fff; font-size: 1rem; cursor: pointer; }
+    #mensagem { margin-top: 16px; padding: 10px 12px; border-radius: 8px; display: none; }
+    #mensagem.sucesso { display: block; background: #dcfce7; color: var(--ok); }
+    #mensagem.erro { display: block; background: #fee2e2; color: var(--erro); }
+    #horarios { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    #horarios button { width: auto; margin: 0; padding: 4px 8px; font-size: .85rem; background: #e0e7ff; color: #1e3a8a; }
+    .dica { font-size: .8rem; color: #6b7280; margin-top: 6px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Agendar serviço</h1>
+  <form id="form-agendamento">
+    <label for="cliente">Cliente</label>
+    <select id="cliente" required></select>
+
+    <label for="profissional">Profissional</label>
+    <select id="profissional" required></select>
+
+    <label for="servico">Serviço</label>
+    <select id="servico" required></select>
+
+    <div class="linha">
+      <div>
+        <label for="data">Data</label>
+        <input type="date" id="data" required>
+      </div>
+      <div>
+        <label for="hora">Horário</label>
+        <input type="time" id="hora" step="900" required>
+      </div>
+    </div>
+
+    <p class="dica">Horários livres (clique para escolher):</p>
+    <div id="horarios" aria-live="polite"></div>
+
+    <button type="submit" id="agendar">Agendar</button>
+  </form>
+  <div id="mensagem" role="status"></div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let profissionais = [];
+
+  function opcoes(select, itens, texto) {
+    select.innerHTML = itens.map(i => `<option value="${i.id}">${texto(i)}</option>`).join("");
+  }
+
+  function mostrar(texto, tipo) {
+    const m = $("mensagem");
+    m.textContent = texto;
+    m.className = tipo;
+  }
+
+  function atualizarServicos() {
+    const prof = profissionais.find(p => p.id == $("profissional").value);
+    opcoes($("servico"), prof ? prof.servicos : [], s => `${s.nome} (${s.duracao_min} min)`);
+  }
+
+  async function atualizarHorarios() {
+    const caixa = $("horarios");
+    caixa.innerHTML = "";
+    const data = $("data").value;
+    if (!data || !$("servico").value) return;
+    const q = new URLSearchParams({ profissional: $("profissional").value, servico: $("servico").value, data });
+    const r = await fetch(`/disponibilidade?${q}`);
+    if (!r.ok) return;
+    const { horarios } = await r.json();
+    if (!horarios.length) { caixa.textContent = "Nenhum horário livre neste dia."; return; }
+    for (const h of horarios) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = h;
+      b.onclick = () => { $("hora").value = h; };
+      caixa.appendChild(b);
+    }
+  }
+
+  async function carregar() {
+    const [clientes, profs] = await Promise.all([
+      fetch("/clientes").then(r => r.json()),
+      fetch("/profissionais").then(r => r.json()),
+    ]);
+    profissionais = profs;
+    opcoes($("cliente"), clientes, c => c.nome);
+    opcoes($("profissional"), profs, p => p.nome);
+    atualizarServicos();
+  }
+
+  $("profissional").addEventListener("change", () => { atualizarServicos(); atualizarHorarios(); });
+  $("servico").addEventListener("change", atualizarHorarios);
+  $("data").addEventListener("change", atualizarHorarios);
+
+  $("form-agendamento").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const corpo = {
+      cliente_id: Number($("cliente").value),
+      profissional_id: Number($("profissional").value),
+      servico_id: Number($("servico").value),
+      inicio: `${$("data").value}T${$("hora").value}`,
+    };
+    const r = await fetch("/agendamentos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    const json = await r.json();
+    if (r.status === 201) {
+      const [d, h] = json.inicio.split("T");
+      mostrar(`Agendamento confirmado para ${d.split("-").reverse().join("/")} às ${h.slice(0, 5)}.`, "sucesso");
+      atualizarHorarios();
+    } else {
+      const detalhe = typeof json.detail === "string" ? json.detail : "Preencha todos os campos corretamente.";
+      mostrar(`Não foi possível agendar: ${detalhe}`, "erro");
+    }
+  });
+
+  carregar();
+</script>
+</body>
+</html>

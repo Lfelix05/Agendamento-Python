@@ -1,0 +1,42 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Testes unitários
+        run: pytest -m unit
+
+      - name: Testes de API
+        run: pytest -m api
+
+      - name: Testes E2E (com vídeo)
+        run: pytest -m e2e --video=on
+
+      - name: Cobertura (todas as camadas, mínimo 85%)
+        run: pytest --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=85
+
+      - name: Publicar relatório de cobertura, vídeos e prints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-dos-testes
+          path: |
+            htmlcov/
+            test-results/

@@ -1,0 +1,11 @@
+# Aplicação
+fastapi==0.162.4
+uvicorn==0.54.0
+sqlalchemy==2.1.8
+
+# Testes
+pytest==9.2.0
+pytest-cov==7.1.0
+freezegun==1.5.5
+httpx==0.28.1
+pytest-playwright==0.10.0
