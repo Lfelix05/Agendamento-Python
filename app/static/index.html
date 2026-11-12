@@ -5,70 +5,161 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agendamento de Serviços</title>
   <style>
-    :root { --cor: #2563eb; --ok: #15803d; --erro: #b91c1c; --borda: #d1d5db; }
+    :root { --cor: #2563eb; --ok: #15803d; --erro: #b91c1c; --borda: #d1d5db; --suave: #6b7280; }
     * { box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; background: #f3f4f6; margin: 0; padding: 24px 16px; color: #111827; }
-    main { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .layout { display: grid; grid-template-columns: 300px minmax(0, 520px) 260px; gap: 20px; justify-content: center; align-items: start; }
+    .cartao { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
     h1 { font-size: 1.4rem; margin: 0 0 16px; }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
     label { display: block; font-weight: 600; margin: 12px 0 4px; font-size: .9rem; }
     select, input { width: 100%; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 1rem; }
     .linha { display: flex; gap: 12px; }
     .linha > div { flex: 1; }
     button { margin-top: 20px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--cor); color: #fff; font-size: 1rem; cursor: pointer; }
-    #mensagem { margin-top: 16px; padding: 10px 12px; border-radius: 8px; display: none; }
-    #mensagem.sucesso { display: block; background: #dcfce7; color: var(--ok); }
-    #mensagem.erro { display: block; background: #fee2e2; color: var(--erro); }
+    button.secundario { background: #fff; color: var(--cor); border: 1px solid var(--cor); }
+    .mensagem { margin-top: 16px; padding: 10px 12px; border-radius: 8px; display: none; }
+    .mensagem.sucesso { display: block; background: #dcfce7; color: var(--ok); }
+    .mensagem.erro { display: block; background: #fee2e2; color: var(--erro); }
     #horarios { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     #horarios button { width: auto; margin: 0; padding: 4px 8px; font-size: .85rem; background: #e0e7ff; color: #1e3a8a; }
-    .dica { font-size: .8rem; color: #6b7280; margin-top: 6px; }
+    .dica { font-size: .8rem; color: var(--suave); margin-top: 6px; }
+
+    /* lateral esquerda: clientes e horários agendados */
+    #lista-clientes { list-style: none; margin: 0; padding: 0; max-height: 75vh; overflow-y: auto; }
+    .cliente { padding: 10px 0; border-top: 1px solid #e5e7eb; }
+    .cliente:first-child { border-top: 0; padding-top: 0; }
+    .cliente-nome { font-weight: 600; }
+    .cliente-tel { font-size: .8rem; color: var(--suave); }
+    .cliente ul { list-style: none; margin: 6px 0 0; padding: 0; }
+    .horario { font-size: .85rem; background: #eff6ff; border-left: 3px solid var(--cor); border-radius: 4px; padding: 4px 8px; margin-top: 4px; }
+    .horario strong { display: block; }
+    .sem-horario { font-size: .8rem; color: var(--suave); margin: 4px 0 0; }
+
+    /* lateral direita: adicionar cliente */
+    #novo-cliente[hidden] { display: none; }
+    #form-cliente button { margin-top: 12px; }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: minmax(0, 1fr); max-width: 560px; margin: 0 auto; }
+      #painel-agenda { order: 2; }
+      #painel-clientes { order: 1; }
+      main { order: 0; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <h1>Agendar serviço</h1>
-  <form id="form-agendamento">
-    <label for="cliente">Cliente</label>
-    <select id="cliente" required></select>
+<div class="layout">
+  <aside id="painel-agenda" class="cartao" aria-labelledby="titulo-agenda">
+    <h2 id="titulo-agenda">Clientes e horários agendados</h2>
+    <ul id="lista-clientes"></ul>
+  </aside>
 
-    <label for="profissional">Profissional</label>
-    <select id="profissional" required></select>
+  <main class="cartao">
+    <h1>Agendar serviço</h1>
+    <form id="form-agendamento">
+      <label for="cliente">Cliente</label>
+      <select id="cliente" required></select>
 
-    <label for="servico">Serviço</label>
-    <select id="servico" required></select>
+      <label for="profissional">Profissional</label>
+      <select id="profissional" required></select>
 
-    <div class="linha">
-      <div>
-        <label for="data">Data</label>
-        <input type="date" id="data" required>
+      <label for="servico">Serviço</label>
+      <select id="servico" required></select>
+
+      <div class="linha">
+        <div>
+          <label for="data">Data</label>
+          <input type="date" id="data" required>
+        </div>
+        <div>
+          <label for="hora">Horário</label>
+          <input type="time" id="hora" step="900" required>
+        </div>
       </div>
-      <div>
-        <label for="hora">Horário</label>
-        <input type="time" id="hora" step="900" required>
-      </div>
+
+      <p class="dica">Horários livres (clique para escolher):</p>
+      <div id="horarios" aria-live="polite"></div>
+
+      <button type="submit" id="agendar">Agendar</button>
+    </form>
+    <div id="mensagem" class="mensagem" role="status"></div>
+  </main>
+
+  <aside id="painel-clientes" class="cartao" aria-labelledby="titulo-clientes">
+    <h2 id="titulo-clientes">Clientes</h2>
+    <button type="button" id="abrir-cliente" aria-expanded="false" aria-controls="novo-cliente">+ Adicionar cliente</button>
+    <div id="novo-cliente" hidden>
+      <form id="form-cliente">
+        <label for="cliente-nome">Nome</label>
+        <input id="cliente-nome" autocomplete="name" required>
+        <label for="cliente-telefone">Telefone</label>
+        <input id="cliente-telefone" type="tel" placeholder="(48) 99999-0000" autocomplete="tel" required>
+        <button type="submit" id="salvar-cliente">Salvar cliente</button>
+        <button type="button" id="cancelar-cliente" class="secundario">Cancelar</button>
+      </form>
     </div>
-
-    <p class="dica">Horários livres (clique para escolher):</p>
-    <div id="horarios" aria-live="polite"></div>
-
-    <button type="submit" id="agendar">Agendar</button>
-  </form>
-  <div id="mensagem" role="status"></div>
-</main>
+    <div id="mensagem-cliente" class="mensagem" role="status"></div>
+  </aside>
+</div>
 
 <script>
   const $ = (id) => document.getElementById(id);
   let profissionais = [];
 
+  // Nomes vêm do usuário: sempre via textContent, nunca innerHTML (evita injeção de HTML).
+  function el(tag, props = {}, ...filhos) {
+    const e = Object.assign(document.createElement(tag), props);
+    e.append(...filhos);
+    return e;
+  }
+
   function opcoes(select, itens, texto) {
-    select.innerHTML = itens.map(i => `<option value="${i.id}">${texto(i)}</option>`).join("");
+    const atual = select.value;
+    select.replaceChildren(...itens.map(i => el("option", { value: i.id, textContent: texto(i) })));
+    if (itens.some(i => String(i.id) === atual)) select.value = atual;
   }
 
-  function mostrar(texto, tipo) {
-    const m = $("mensagem");
-    m.textContent = texto;
-    m.className = tipo;
+  function mostrar(alvo, texto, tipo) {
+    alvo.textContent = texto;
+    alvo.className = `mensagem ${tipo}`;
   }
 
+  function erroDaApi(json) {
+    if (typeof json.detail === "string") return json.detail;
+    const primeiro = Array.isArray(json.detail) && json.detail[0];
+    return primeiro ? primeiro.msg.replace(/^Value error, /, "") : "Preencha todos os campos corretamente.";
+  }
+
+  const dataBR = (iso) => iso.slice(0, 10).split("-").reverse().join("/");
+  const horaBR = (iso) => iso.slice(11, 16);
+
+  // ------------------------------------------------ lateral: clientes e horários
+  async function atualizarAgenda() {
+    const [clientes, agendamentos] = await Promise.all([
+      fetch("/clientes").then(r => r.json()),
+      fetch("/agendamentos/proximos").then(r => r.json()),
+    ]);
+    opcoes($("cliente"), clientes, c => c.nome);
+
+    const lista = $("lista-clientes");
+    lista.replaceChildren(...clientes.map(c => {
+      const deles = agendamentos.filter(a => a.cliente_id === c.id);
+      const horarios = deles.length
+        ? el("ul", {}, ...deles.map(a => el("li", { className: "horario" },
+            el("strong", { textContent: `${dataBR(a.inicio)} · ${horaBR(a.inicio)}–${horaBR(a.fim)}` }),
+            `${a.servico_nome} com ${a.profissional_nome}`)))
+        : el("p", { className: "sem-horario", textContent: "Sem horários agendados" });
+      const item = el("li", { className: "cliente" },
+        el("div", { className: "cliente-nome", textContent: c.nome }),
+        el("div", { className: "cliente-tel", textContent: c.telefone }),
+        horarios);
+      item.dataset.id = c.id;  // dataset é somente leitura: não dá para passar em el()
+      return item;
+    }));
+  }
+
+  // ------------------------------------------------ formulário de agendamento
   function atualizarServicos() {
     const prof = profissionais.find(p => p.id == $("profissional").value);
     opcoes($("servico"), prof ? prof.servicos : [], s => `${s.nome} (${s.duracao_min} min)`);
@@ -76,7 +167,7 @@
 
   async function atualizarHorarios() {
     const caixa = $("horarios");
-    caixa.innerHTML = "";
+    caixa.replaceChildren();
     const data = $("data").value;
     if (!data || !$("servico").value) return;
     const q = new URLSearchParams({ profissional: $("profissional").value, servico: $("servico").value, data });
@@ -84,24 +175,8 @@
     if (!r.ok) return;
     const { horarios } = await r.json();
     if (!horarios.length) { caixa.textContent = "Nenhum horário livre neste dia."; return; }
-    for (const h of horarios) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = h;
-      b.onclick = () => { $("hora").value = h; };
-      caixa.appendChild(b);
-    }
-  }
-
-  async function carregar() {
-    const [clientes, profs] = await Promise.all([
-      fetch("/clientes").then(r => r.json()),
-      fetch("/profissionais").then(r => r.json()),
-    ]);
-    profissionais = profs;
-    opcoes($("cliente"), clientes, c => c.nome);
-    opcoes($("profissional"), profs, p => p.nome);
-    atualizarServicos();
+    caixa.append(...horarios.map(h =>
+      el("button", { type: "button", textContent: h, onclick: () => { $("hora").value = h; } })));
   }
 
   $("profissional").addEventListener("change", () => { atualizarServicos(); atualizarHorarios(); });
@@ -123,14 +198,57 @@
     });
     const json = await r.json();
     if (r.status === 201) {
-      const [d, h] = json.inicio.split("T");
-      mostrar(`Agendamento confirmado para ${d.split("-").reverse().join("/")} às ${h.slice(0, 5)}.`, "sucesso");
+      mostrar($("mensagem"), `Agendamento confirmado para ${dataBR(json.inicio)} às ${horaBR(json.inicio)}.`, "sucesso");
       atualizarHorarios();
+      atualizarAgenda();
     } else {
-      const detalhe = typeof json.detail === "string" ? json.detail : "Preencha todos os campos corretamente.";
-      mostrar(`Não foi possível agendar: ${detalhe}`, "erro");
+      mostrar($("mensagem"), `Não foi possível agendar: ${erroDaApi(json)}`, "erro");
     }
   });
+
+  // ------------------------------------------------ lateral: adicionar cliente
+  function abrirFormCliente(aberto) {
+    $("novo-cliente").hidden = !aberto;
+    $("abrir-cliente").hidden = aberto;
+    $("abrir-cliente").setAttribute("aria-expanded", String(aberto));
+    if (aberto) $("cliente-nome").focus();
+  }
+
+  $("abrir-cliente").addEventListener("click", () => {
+    $("mensagem-cliente").className = "mensagem";
+    abrirFormCliente(true);
+  });
+  $("cancelar-cliente").addEventListener("click", () => {
+    $("form-cliente").reset();
+    abrirFormCliente(false);
+  });
+
+  $("form-cliente").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const r = await fetch("/clientes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: $("cliente-nome").value, telefone: $("cliente-telefone").value }),
+    });
+    const json = await r.json();
+    if (r.status === 201) {
+      $("form-cliente").reset();
+      abrirFormCliente(false);
+      await atualizarAgenda();
+      $("cliente").value = json.id;  // já deixa o novo cliente selecionado
+      mostrar($("mensagem-cliente"), `Cliente ${json.nome} cadastrado.`, "sucesso");
+    } else {
+      mostrar($("mensagem-cliente"), `Não foi possível cadastrar: ${erroDaApi(json)}`, "erro");
+    }
+  });
+
+  // ------------------------------------------------ carga inicial
+  async function carregar() {
+    profissionais = await fetch("/profissionais").then(r => r.json());
+    opcoes($("profissional"), profissionais, p => p.nome);
+    atualizarServicos();
+    await atualizarAgenda();
+  }
 
   carregar();
 </script>

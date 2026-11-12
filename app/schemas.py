@@ -60,6 +60,38 @@ class ClienteOut(BaseModel):
     telefone: str
 
 
+class ClienteCreate(BaseModel):
+    nome: str
+    telefone: str
+
+    @field_validator("nome")
+    @classmethod
+    def nome_valido(cls, valor: str) -> str:
+        valor = " ".join(valor.split())
+        if len(valor) < 2:
+            raise ValueError("informe o nome do cliente")
+        return valor
+
+    @field_validator("telefone")
+    @classmethod
+    def telefone_valido(cls, valor: str) -> str:
+        """Aceita qualquer formatação e guarda no padrão (DD) 99999-9999."""
+        digitos = "".join(c for c in valor if c.isdigit())
+        if len(digitos) == 11:
+            return f"({digitos[:2]}) {digitos[2:7]}-{digitos[7:]}"
+        if len(digitos) == 10:
+            return f"({digitos[:2]}) {digitos[2:6]}-{digitos[6:]}"
+        raise ValueError("telefone deve ter DDD + número (10 ou 11 dígitos)")
+
+
+class AgendamentoDetalhadoOut(AgendamentoOut):
+    """Agendamento com os nomes, para exibir na lateral da página."""
+
+    cliente_nome: str
+    profissional_nome: str
+    servico_nome: str
+
+
 class DisponibilidadeOut(BaseModel):
     profissional_id: int
     servico_id: int

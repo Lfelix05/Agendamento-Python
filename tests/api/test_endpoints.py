@@ -4,10 +4,12 @@ Chamam os endpoints de verdade via TestClient, com banco em memória e relógio
 congelado em segunda-feira, 16/11/2026, 08:00 (fixture ``relogio``).
 """
 
+from datetime import datetime
+
 import pytest
 from sqlalchemy import select
 
-from app.models import Agendamento
+from app.models import Agendamento, Cliente
 
 pytestmark = pytest.mark.usefixtures("relogio")
 
@@ -202,3 +204,75 @@ def test_seed_nao_duplica_dados(db, dados):
     from app import seed
 
     assert seed.popular(db) is False
+
+
+# ------------------------------------------------------------------ cadastro de clientes
+@pytest.mark.parametrize(
+    "telefone, gravado",
+    [
+        ("48988887777", "(48) 98888-7777"),
+        ("(48) 98888-7777", "(48) 98888-7777"),
+        ("48 3333-4444", "(48) 3333-4444"),
+    ],
+)
+def test_post_cliente_cria_e_padroniza_telefone(client, db, telefone, gravado):
+    resposta = client.post("/clientes", json={"nome": "  Lucas   Félix ", "telefone": telefone})
+
+    assert resposta.status_code == 201
+    assert resposta.json()["nome"] == "Lucas Félix"
+    assert resposta.json()["telefone"] == gravado
+    assert db.get(Cliente, resposta.json()["id"]) is not None
+
+
+@pytest.mark.parametrize(
+    "corpo",
+    [
+        pytest.param({"nome": "", "telefone": "48988887777"}, id="nome vazio"),
+        pytest.param({"nome": "A", "telefone": "48988887777"}, id="nome com 1 letra"),
+        pytest.param({"nome": "Lucas", "telefone": "988887777"}, id="telefone sem DDD"),
+        pytest.param({"nome": "Lucas", "telefone": "489888877771"}, id="telefone com 12 dígitos"),
+        pytest.param({"nome": "Lucas"}, id="sem telefone"),
+    ],
+)
+def test_post_cliente_invalido_retorna_422(client, corpo):
+    assert client.post("/clientes", json=corpo).status_code == 422
+
+
+def test_post_cliente_com_telefone_repetido_retorna_409(client, dados):
+    # João Pereira já usa (48) 99999-0001 no seed; formatação diferente, mesmo número
+    resposta = client.post("/clientes", json={"nome": "Outro João", "telefone": "48 99999 0001"})
+    assert resposta.status_code == 409
+
+
+def test_cliente_novo_pode_agendar(client, dados):
+    novo = client.post("/clientes", json={"nome": "Lucas", "telefone": "48988887777"}).json()
+    resposta = client.post(
+        "/agendamentos",
+        json={"cliente_id": novo["id"], "profissional_id": dados["ana"].id,
+              "servico_id": dados["corte"].id, "inicio": TERCA_10H},
+    )
+    assert resposta.status_code == 201
+
+
+# ------------------------------------------------------------------ lateral: próximos agendamentos
+def test_proximos_lista_so_ativos_futuros_em_ordem_com_nomes(client, dados, db):
+    agendar(client, dados, inicio="2026-11-18T10:00:00", cliente="maria")
+    agendar(client, dados, inicio="2026-11-17T10:00:00", cliente="joao")
+    cancelado = agendar(client, dados, inicio="2026-11-19T10:00:00", cliente="pedro").json()["id"]
+    client.patch(f"/agendamentos/{cancelado}/cancelar")
+    # agendamento antigo (gravado direto no banco, pois a API não deixa criar no passado)
+    db.add(Agendamento(cliente_id=dados["pedro"].id, profissional_id=dados["ana"].id,
+                       servico_id=dados["corte"].id, inicio=datetime(2026, 11, 13, 10),
+                       fim=datetime(2026, 11, 13, 10, 30), status="ativo"))
+    db.commit()
+
+    resposta = client.get("/agendamentos/proximos")
+
+    assert resposta.status_code == 200
+    itens = resposta.json()
+    assert [(i["cliente_nome"], i["inicio"]) for i in itens] == [
+        ("João Pereira", "2026-11-17T10:00:00"),
+        ("Maria Souza", "2026-11-18T10:00:00"),
+    ]
+    assert itens[0]["profissional_nome"] == "Ana Lima"
+    assert itens[0]["servico_nome"] == "Corte de cabelo"

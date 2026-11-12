@@ -13,7 +13,9 @@ from app.models import Agendamento, Cliente, Profissional, Servico
 from app.regras import Status
 from app.schemas import (
     AgendamentoCreate,
+    AgendamentoDetalhadoOut,
     AgendamentoOut,
+    ClienteCreate,
     ClienteOut,
     DisponibilidadeOut,
     ErroOut,
@@ -69,6 +71,17 @@ def listar_clientes(db: Session = Depends(get_db)):
     return db.scalars(select(Cliente).order_by(Cliente.nome)).all()
 
 
+@router.post("/clientes", response_model=ClienteOut, status_code=201, responses=ERROS)
+def criar_cliente(dados: ClienteCreate, db: Session = Depends(get_db)):
+    if db.scalar(select(Cliente).where(Cliente.telefone == dados.telefone)) is not None:
+        raise HTTPException(409, f"Já existe um cliente com o telefone {dados.telefone}.")
+    cliente = Cliente(nome=dados.nome, telefone=dados.telefone)
+    db.add(cliente)
+    db.commit()
+    db.refresh(cliente)
+    return cliente
+
+
 # ------------------------------------------------------------------ agendamentos
 @router.post("/agendamentos", response_model=AgendamentoOut, status_code=201, responses=ERROS)
 def criar_agendamento(dados: AgendamentoCreate, db: Session = Depends(get_db)):
@@ -109,6 +122,26 @@ def listar_agenda(
 ):
     _buscar(db, Profissional, profissional, "Profissional")
     return _agenda_do_dia(db, data, profissional_id=profissional)
+
+
+# Precisa vir antes de /agendamentos/{agendamento_id} para não ser capturada por ela.
+@router.get("/agendamentos/proximos", response_model=list[AgendamentoDetalhadoOut])
+def proximos_agendamentos(db: Session = Depends(get_db)):
+    """Agendamentos ativos de agora em diante, com nomes de cliente, profissional e serviço."""
+    stmt = (
+        select(Agendamento)
+        .where(Agendamento.status == Status.ATIVO.value, Agendamento.inicio >= agora())
+        .order_by(Agendamento.inicio)
+    )
+    return [
+        AgendamentoDetalhadoOut(
+            **AgendamentoOut.model_validate(a).model_dump(),
+            cliente_nome=a.cliente.nome,
+            profissional_nome=a.profissional.nome,
+            servico_nome=a.servico.nome,
+        )
+        for a in db.scalars(stmt)
+    ]
 
 
 @router.get("/agendamentos/{agendamento_id}", response_model=AgendamentoOut, responses=ERROS)

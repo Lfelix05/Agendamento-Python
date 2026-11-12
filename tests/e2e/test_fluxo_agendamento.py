@@ -39,7 +39,7 @@ def test_ct24_usuario_agenda_com_sucesso(page: Page):
     page.click("#agendar")
 
     mensagem = page.locator("#mensagem")
-    expect(mensagem).to_have_class("sucesso")
+    expect(mensagem).to_have_class("mensagem sucesso")
     expect(mensagem).to_have_text(f"Agendamento confirmado para {dia:%d/%m/%Y} às 10:00.")
     # o horário recém-ocupado some da lista de horários livres
     expect(page.locator("#horarios button", has_text="10:00")).to_have_count(0)
@@ -69,6 +69,51 @@ def test_ct25_usuario_ve_mensagem_de_conflito(page: Page, servidor: str):
     page.click("#agendar")
 
     mensagem = page.locator("#mensagem")
-    expect(mensagem).to_have_class("erro")
+    expect(mensagem).to_have_class("mensagem erro")
     expect(mensagem).to_contain_text("O profissional já possui um agendamento neste horário.")
     page.screenshot(path=f"{PRINTS}/ct25_conflito.png", full_page=True)
+
+
+def test_agendamento_aparece_na_lateral_do_cliente(page: Page):
+    dia = proximo_dia_util()
+    page.goto("/")
+    preencher(page, "Maria Souza", "Ana Lima", "Coloração (90 min)", dia, "15:00")
+    page.click("#agendar")
+    expect(page.locator("#mensagem")).to_have_class("mensagem sucesso")
+
+    maria = page.locator("#lista-clientes .cliente", has_text="Maria Souza")
+    expect(maria.locator(".horario", has_text=f"{dia:%d/%m/%Y} · 15:00–16:30")).to_contain_text(
+        "Coloração com Ana Lima"
+    )
+
+
+def test_usuario_adiciona_cliente_pelo_botao_lateral(page: Page):
+    page.goto("/")
+    expect(page.locator("#novo-cliente")).to_be_hidden()
+
+    page.click("#abrir-cliente")
+    page.fill("#cliente-nome", "Lucas Félix")
+    page.fill("#cliente-telefone", "48912345678")
+    page.click("#salvar-cliente")
+
+    expect(page.locator("#mensagem-cliente")).to_have_text("Cliente Lucas Félix cadastrado.")
+    expect(page.locator("#novo-cliente")).to_be_hidden()
+    # aparece na lateral e já fica selecionado no formulário de agendamento
+    novo = page.locator("#lista-clientes .cliente", has_text="Lucas Félix")
+    expect(novo).to_contain_text("(48) 91234-5678")
+    expect(novo).to_contain_text("Sem horários agendados")
+    expect(page.locator("#cliente option:checked")).to_have_text("Lucas Félix")
+    page.screenshot(path=f"{PRINTS}/novo_cliente.png", full_page=True)
+
+
+def test_cadastro_de_cliente_invalido_mostra_erro(page: Page):
+    page.goto("/")
+    page.click("#abrir-cliente")
+    page.fill("#cliente-nome", "Teste")
+    page.fill("#cliente-telefone", "1234")
+    page.click("#salvar-cliente")
+
+    erro = page.locator("#mensagem-cliente")
+    expect(erro).to_have_class("mensagem erro")
+    expect(erro).to_contain_text("telefone deve ter DDD")
+    expect(page.locator("#novo-cliente")).to_be_visible()  # formulário continua aberto para corrigir

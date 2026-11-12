@@ -57,6 +57,13 @@ def servidor(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
+def browser_type_launch_args(browser_type_launch_args):
+    """Campos de data/hora nativos seguem o idioma do navegador, não o ``locale``."""
+    args = [*browser_type_launch_args.get("args", []), "--lang=pt-BR"]
+    return {**browser_type_launch_args, "args": args}
+
+
+@pytest.fixture(scope="session")
 def browser_context_args(browser_context_args):
     """Navegador em português: datas dd/mm/aaaa e horário 24h nos prints e vídeos."""
     return {**browser_context_args, "locale": "pt-BR", "timezone_id": "America/Sao_Paulo"}

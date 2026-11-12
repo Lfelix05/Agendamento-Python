@@ -22,7 +22,8 @@ python -m playwright install chromium   # navegador dos testes E2E
 uvicorn app.main:app --reload
 ```
 
-- Formulário de agendamento: http://127.0.0.1:8000/
+- Página de agendamento: http://127.0.0.1:8000/ — à esquerda, os clientes com seus
+  horários agendados; no centro, o formulário; à direita, o botão para adicionar clientes
 - Documentação automática da API: http://127.0.0.1:8000/docs
 
 Na primeira execução o banco `agendamento.db` é criado com dados de exemplo
@@ -68,11 +69,13 @@ Todas ficam em `app/regras.py` como funções puras: não acessam banco, HTTP ne
 | --- | --- |
 | `POST /agendamentos` | Cria um agendamento (201; 400 regra violada; 409 conflito; 422 dados inválidos) |
 | `GET /agendamentos?profissional=&data=` | Agenda do profissional no dia |
+| `GET /agendamentos/proximos` | Agendamentos ativos futuros, com nomes (lateral da página) |
 | `GET /agendamentos/{id}` | Consulta um agendamento |
 | `PATCH /agendamentos/{id}/cancelar` | Cancela (RN08) |
 | `PATCH /agendamentos/{id}/concluir` | Marca como concluído |
 | `GET /disponibilidade?profissional=&servico=&data=` | Horários de início livres |
 | `GET /profissionais`, `/servicos`, `/clientes` | Cadastros (usados pelo formulário) |
+| `POST /clientes` | Cadastra cliente (201; 422 nome/telefone inválido; 409 telefone já cadastrado) |
 
 Erros de regra de negócio retornam `{"detail": "mensagem", "regra": "RN04"}`.
 
